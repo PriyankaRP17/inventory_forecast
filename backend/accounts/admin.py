@@ -9,3 +9,5 @@ class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
         ('Role & Warehouse', {'fields': ('role', 'warehouse')}),
     )
+
+

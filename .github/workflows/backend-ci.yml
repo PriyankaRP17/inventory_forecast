@@ -7,19 +7,52 @@ on:
     branches: [main]
 
 jobs:
-  lint:
+  lint-and-test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: inventory_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SECRET_KEY: test-secret-key-for-ci
+      DEBUG: 'True'
+      DB_NAME: inventory_db
+      DB_USER: postgres
+      DB_PASSWORD: testpassword
+      DB_HOST: localhost
+      DB_PORT: 5432
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install deps
+
+      - name: Install dependencies
         run: |
           cd backend
           pip install -r requirements.txt
-          pip install flake8
+          pip install flake8 pytest pytest-django factory-boy
+
       - name: Lint with flake8
         run: |
           cd backend
-          flake8 . --max-line-length=119 --exclude=migrations,venv
+          flake8 . --max-line-length=119 --exclude=migrations,venv,__pycache__
+
+      - name: Run pytest
+        run: |
+          cd backend
+          pytest --tb=short -v

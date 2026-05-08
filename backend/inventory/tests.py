@@ -1,7 +1,8 @@
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
-from unittest.mock import patch
+
+from unittest.mock import patch  # noqa: F401
 
 from inventory.models import Category, Product, Supplier, Warehouse
 
@@ -166,7 +167,8 @@ def test_stock_in_increases_quantity(api_client, staff_user, product):
         'quantity': 10,
         'note': 'New stock arrived',
     }
-    response = api_client.post('/api/stock-transactions/', payload)
+    with patch('inventory.tasks.check_low_stock_and_alert.delay'):
+        response = api_client.post('/api/stock-transactions/', payload)
     assert response.status_code == 201
     product.refresh_from_db()
     assert product.quantity == initial_qty + 10
@@ -182,7 +184,8 @@ def test_stock_out_decreases_quantity(api_client, staff_user, product):
         'quantity': 5,
         'note': 'Dispatched to client',
     }
-    response = api_client.post('/api/stock-transactions/', payload)
+    with patch('inventory.tasks.check_low_stock_and_alert.delay'):
+        response = api_client.post('/api/stock-transactions/', payload)
     assert response.status_code == 201
     product.refresh_from_db()
     assert product.quantity == initial_qty - 5

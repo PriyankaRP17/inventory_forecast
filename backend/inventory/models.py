@@ -1,4 +1,5 @@
 from django.db import models
+from auditlog.registry import auditlog
 
 
 class Warehouse(models.Model):
@@ -61,3 +62,76 @@ class Product(models.Model):
     @property
     def is_low_stock(self):
         return self.quantity <= self.low_stock_threshold
+
+class StockTransaction(models.Model):
+    TRANSACTION_TYPES = [
+        ('in', 'Stock In'),
+        ('out', 'Stock Out'),
+        ('adjustment', 'Adjustment'),
+    ]
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE,
+        related_name='transactions'
+    )
+    transaction_type = models.CharField(
+        max_length=20, choices=TRANSACTION_TYPES
+    )
+    quantity = models.PositiveIntegerField()
+    note = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        'accounts.CustomUser', on_delete=models.SET_NULL,
+        null=True, related_name='transactions'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.transaction_type} - {self.product.name} ({self.quantity})"
+
+    def save(self, *args, **kwargs):
+        if self.transaction_type == 'in':
+            self.product.quantity += self.quantity
+        elif self.transaction_type == 'out':
+            self.product.quantity -= self.quantity
+        elif self.transaction_type == 'adjustment':
+            self.product.quantity = self.quantity
+        self.product.save()
+        super().save(*args, **kwargs)
+
+
+class PurchaseOrder(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE,
+        related_name='purchase_orders'
+    )
+    supplier = models.ForeignKey(
+        Supplier, on_delete=models.CASCADE,
+        related_name='purchase_orders'
+    )
+    quantity = models.PositiveIntegerField()
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='pending'
+    )
+    requested_by = models.ForeignKey(
+        'accounts.CustomUser', on_delete=models.SET_NULL,
+        null=True, related_name='requested_orders'
+    )
+    approved_by = models.ForeignKey(
+        'accounts.CustomUser', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='approved_orders'
+    )
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"PO-{self.id} {self.product.name} ({self.status})"
+
+
+auditlog.register(Product)
+auditlog.register(StockTransaction)
+auditlog.register(PurchaseOrder)

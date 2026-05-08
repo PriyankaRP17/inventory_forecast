@@ -1,6 +1,7 @@
 from django.contrib import admin
 
-from .models import Category, Product, Supplier, Warehouse
+from .models import (Category, Product, PurchaseOrder,
+                     StockTransaction, Supplier, Warehouse)
 
 
 @admin.register(Warehouse)
@@ -21,3 +22,13 @@ class SupplierAdmin(admin.ModelAdmin):
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ['name', 'sku', 'quantity', 'is_low_stock']
+
+
+@admin.register(StockTransaction)
+class StockTransactionAdmin(admin.ModelAdmin):
+    list_display = ['product', 'transaction_type', 'quantity', 'created_by', 'created_at']
+
+
+@admin.register(PurchaseOrder)
+class PurchaseOrderAdmin(admin.ModelAdmin):
+    list_display = ['product', 'supplier', 'quantity', 'status', 'requested_by']

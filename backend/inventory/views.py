@@ -1,6 +1,10 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from .models import Category, Product, PurchaseOrder, StockTransaction, Supplier, Warehouse
+from .serializers import (CategorySerializer, ProductSerializer,
+                          PurchaseOrderSerializer, StockTransactionSerializer,
+                          SupplierSerializer, WarehouseSerializer)
 
 from accounts.permissions import IsAdmin, IsManager, IsStaff
 
@@ -269,3 +273,86 @@ class ProductDetailView(APIView):
             )
         product.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class StockTransactionListCreateView(APIView):
+    def get_permissions(self):
+        return [IsStaff()]
+
+    def get(self, request):
+        transactions = StockTransaction.objects.select_related(
+            'product', 'created_by'
+        ).all().order_by('-created_at')
+        serializer = StockTransactionSerializer(transactions, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = StockTransactionSerializer(data=request.data)
+        if serializer.is_valid():
+            transaction = serializer.save(created_by=request.user)
+            # trigger low stock check
+            from .tasks import check_low_stock_and_alert
+            check_low_stock_and_alert.delay()
+            return Response(
+                StockTransactionSerializer(transaction).data,
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PurchaseOrderListCreateView(APIView):
+    def get_permissions(self):
+        return [IsStaff()]
+
+    def get(self, request):
+        orders = PurchaseOrder.objects.select_related(
+            'product', 'supplier', 'requested_by', 'approved_by'
+        ).all().order_by('-created_at')
+        serializer = PurchaseOrderSerializer(orders, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = PurchaseOrderSerializer(data=request.data)
+        if serializer.is_valid():
+            order = serializer.save(requested_by=request.user)
+            return Response(
+                PurchaseOrderSerializer(order).data,
+                status=status.HTTP_201_CREATED
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PurchaseOrderApprovalView(APIView):
+    permission_classes = [IsManager]
+
+    def post(self, request, pk):
+        try:
+            order = PurchaseOrder.objects.get(pk=pk)
+        except PurchaseOrder.DoesNotExist:
+            return Response(
+                {'error': 'Not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        action = request.data.get('action')
+        if action == 'approve':
+            order.status = 'approved'
+            order.approved_by = request.user
+            order.save()
+            # auto stock-in when approved
+            StockTransaction.objects.create(
+                product=order.product,
+                transaction_type='in',
+                quantity=order.quantity,
+                created_by=request.user,
+                note=f'Auto stock-in from PO-{order.id}'
+            )
+            return Response({'message': 'Order approved and stock updated'})
+        elif action == 'reject':
+            order.status = 'rejected'
+            order.approved_by = request.user
+            order.save()
+            return Response({'message': 'Order rejected'})
+        return Response(
+            {'error': 'action must be approve or reject'},
+            status=status.HTTP_400_BAD_REQUEST
+        )

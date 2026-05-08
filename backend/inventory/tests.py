@@ -152,3 +152,85 @@ def test_only_admin_can_delete_product(api_client, staff_user, product):
     api_client.force_authenticate(user=staff_user)
     response = api_client.delete(f'/api/products/{product.id}/')
     assert response.status_code == 403
+
+
+# --- Stock Transaction Tests ---
+@pytest.mark.django_db
+def test_stock_in_increases_quantity(api_client, staff_user, product):
+    initial_qty = product.quantity
+    api_client.force_authenticate(user=staff_user)
+    payload = {
+        'product': product.id,
+        'transaction_type': 'in',
+        'quantity': 10,
+        'note': 'New stock arrived',
+    }
+    response = api_client.post('/api/stock-transactions/', payload)
+    assert response.status_code == 201
+    product.refresh_from_db()
+    assert product.quantity == initial_qty + 10
+
+
+@pytest.mark.django_db
+def test_stock_out_decreases_quantity(api_client, staff_user, product):
+    initial_qty = product.quantity
+    api_client.force_authenticate(user=staff_user)
+    payload = {
+        'product': product.id,
+        'transaction_type': 'out',
+        'quantity': 5,
+        'note': 'Dispatched to client',
+    }
+    response = api_client.post('/api/stock-transactions/', payload)
+    assert response.status_code == 201
+    product.refresh_from_db()
+    assert product.quantity == initial_qty - 5
+
+
+# --- Purchase Order Tests ---
+@pytest.mark.django_db
+def test_staff_can_create_purchase_order(api_client, staff_user, product, supplier):
+    api_client.force_authenticate(user=staff_user)
+    payload = {
+        'product': product.id,
+        'supplier': supplier.id,
+        'quantity': 50,
+        'note': 'Urgent reorder',
+    }
+    response = api_client.post('/api/purchase-orders/', payload)
+    assert response.status_code == 201
+    assert response.data['status'] == 'pending'
+
+
+@pytest.mark.django_db
+def test_manager_can_approve_purchase_order(api_client, manager_user, staff_user, product, supplier):
+    api_client.force_authenticate(user=staff_user)
+    order_response = api_client.post('/api/purchase-orders/', {
+        'product': product.id,
+        'supplier': supplier.id,
+        'quantity': 50,
+    })
+    order_id = order_response.data['id']
+    api_client.force_authenticate(user=manager_user)
+    response = api_client.post(
+        f'/api/purchase-orders/{order_id}/action/',
+        {'action': 'approve'}
+    )
+    assert response.status_code == 200
+    assert response.data['message'] == 'Order approved and stock updated'
+
+
+@pytest.mark.django_db
+def test_staff_cannot_approve_purchase_order(api_client, staff_user, product, supplier):
+    api_client.force_authenticate(user=staff_user)
+    order_response = api_client.post('/api/purchase-orders/', {
+        'product': product.id,
+        'supplier': supplier.id,
+        'quantity': 50,
+    })
+    order_id = order_response.data['id']
+    response = api_client.post(
+        f'/api/purchase-orders/{order_id}/action/',
+        {'action': 'approve'}
+    )
+    assert response.status_code == 403

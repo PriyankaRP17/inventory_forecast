@@ -1,15 +1,12 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Category, Product, PurchaseOrder, StockTransaction, Supplier, Warehouse
-from .serializers import (CategorySerializer, ProductSerializer,
-                          PurchaseOrderSerializer, StockTransactionSerializer,
-                          SupplierSerializer, WarehouseSerializer)
 
 from accounts.permissions import IsAdmin, IsManager, IsStaff
 
-from .models import Category, Product, Supplier, Warehouse
+from .models import Category, Product, PurchaseOrder, StockTransaction, Supplier, Warehouse
 from .serializers import (CategorySerializer, ProductSerializer,
+                          PurchaseOrderSerializer, StockTransactionSerializer,
                           SupplierSerializer, WarehouseSerializer)
 
 

@@ -1,6 +1,5 @@
 from rest_framework import serializers
-
-from .models import Category, Product, Supplier, Warehouse
+from .models import Category, Product, PurchaseOrder, StockTransaction, Supplier, Warehouse
 
 
 class WarehouseSerializer(serializers.ModelSerializer):
@@ -48,8 +47,6 @@ class ProductSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
-
-from .models import Category, Product, PurchaseOrder, StockTransaction, Supplier, Warehouse
 
 
 class StockTransactionSerializer(serializers.ModelSerializer):

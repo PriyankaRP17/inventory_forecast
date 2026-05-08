@@ -63,6 +63,7 @@ class Product(models.Model):
     def is_low_stock(self):
         return self.quantity <= self.low_stock_threshold
 
+
 class StockTransaction(models.Model):
     TRANSACTION_TYPES = [
         ('in', 'Stock In'),
